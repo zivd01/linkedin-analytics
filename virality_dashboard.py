@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import os
 import sys
+import plotly.express as px
+import plotly.graph_objects as go
 
 # Ensure we can import our pipeline
 from virality_pipeline import main as run_pipeline
@@ -16,8 +18,8 @@ except ImportError:
 
 st.set_page_config(page_title="LinkedIn Playwright Scraper", page_icon="🕸️", layout="wide")
 
-st.title("🕸️ LinkedIn Virality Pipeline Dashboard")
-st.markdown("Run the Playwright Scraper on a specific LinkedIn Profile URL.")
+st.title("🕸️ LinkedIn Virality & Breakthrough Analysis")
+st.markdown("Analyze post resonance beyond your company and network circles.")
 
 with st.sidebar:
     st.header("1. Credentials (Local)")
@@ -100,28 +102,103 @@ if run_button:
 
 # Display Results
 if os.path.exists(RESULTS_FILE):
-    st.subheader("📊 Extraction Results")
     try:
         df = pd.read_csv(RESULTS_FILE)
         if not df.empty:
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Total Reactions", len(df))
-            col2.metric("Total Posts Found", df["Post URL"].nunique())
-            avg_score = df["Virality Score"].mean()
-            col3.metric("Avg Virality Score", f"{avg_score:.2f}")
+            st.subheader("📊 Resonance & Breakthrough KPI")
             
-            st.dataframe(df, use_container_width=True)
+            # Global Metrics
+            col1, col2, col3, col4 = st.columns(4)
+            
+            # Internal vs External
+            author_comp = df["Author Company"].iloc[0] if "Author Company" in df.columns else "Unknown"
+            df["Engagement Type"] = df["Reactor Company/Headline"].apply(lambda x: "Internal" if str(author_comp).lower() in str(x).lower() else "External")
+            
+            external_count = len(df[df["Engagement Type"] == "External"])
+            resonance_pct = (external_count / len(df)) * 100 if len(df) > 0 else 0
+            
+            col1.metric("Total Reactions", len(df))
+            col2.metric("External Resonance", f"{resonance_pct:.1f}%")
+            col3.metric("Total Posts", df["Post URL"].nunique())
+            col4.metric("Avg Virality Score", f"{df['Virality Score'].mean():.2f}")
+            
+            # Visualizations Row
+            c1, c2 = st.columns(2)
+            
+            with c1:
+                st.markdown("#### Breakthrough: Internal vs External")
+                fig_break = px.pie(df, names="Engagement Type", color="Engagement Type", 
+                                  color_discrete_map={"Internal": "#FF4B4B", "External": "#1f77b4"},
+                                  hole=0.4)
+                st.plotly_chart(fig_break, use_container_width=True)
+                
+            with c2:
+                st.markdown("#### Reaction Distance (Connection Degree)")
+                # Normalize degrees for sorting
+                order = ["1st", "2nd", "3rd", "Out"]
+                deg_counts = df["Connection Degree"].value_counts().reset_index()
+                deg_counts.columns = ["Degree", "Count"]
+                fig_deg = px.bar(deg_counts, x="Degree", y="Count", color="Degree", 
+                               category_orders={"Degree": order},
+                               color_discrete_sequence=px.colors.qualitative.Pastel)
+                st.plotly_chart(fig_deg, use_container_width=True)
             
             st.markdown("---")
-            st.subheader("🕸️ Interactive Virality Map")
-            render_network(df)
             
-            st.markdown("### ☁️ Export to Kumu.io")
-            with open(RESULTS_FILE, "rb") as file:
-                btn = st.download_button("Download virality_results.csv", data=file, file_name="virality_results.csv", mime="text/csv")
+            # Post Specific Analysis
+            st.subheader("🎯 Post-Specific Deep Dive")
+            post_urls = df["Post URL"].unique()
+            selected_post_url = st.selectbox("Select a Post to Analyze", post_urls)
+            
+            post_df = df[df["Post URL"] == selected_post_url]
+            st.info(f"**Post Content Snippet:** {post_df['Post Text'].iloc[0]}")
+            
+            pcol1, pcol2 = st.columns([1, 2])
+            with pcol1:
+                p_external = len(post_df[post_df["Engagement Type"] == "External"])
+                p_resonance = (p_external / len(post_df)) * 100 if len(post_df) > 0 else 0
+                st.metric("Post Resonance", f"{p_resonance:.1f}%")
+                
+                # Gauge Chart for Resonance
+                fig_gauge = go.Figure(go.Indicator(
+                    mode = "gauge+number",
+                    value = p_resonance,
+                    title = {'text': "External Resonance %"},
+                    gauge = {
+                        'axis': {'range': [None, 100]},
+                        'bar': {'color': "#1f77b4"},
+                        'steps': [
+                            {'range': [0, 30], 'color': "lightgray"},
+                            {'range': [30, 70], 'color': "gray"},
+                            {'range': [70, 100], 'color': "lightblue"}],
+                    }
+                ))
+                fig_gauge.update_layout(height=250, margin=dict(l=20, r=20, t=50, b=20))
+                st.plotly_chart(fig_gauge, use_container_width=True)
+
+            with pcol2:
+                st.markdown("#### Top Engaging External Companies / Titles")
+                external_df = post_df[post_df["Engagement Type"] == "External"]
+                if not external_df.empty:
+                    top_comps = external_df["Reactor Company/Headline"].value_counts().head(10).reset_index()
+                    top_comps.columns = ["Company/Headline", "Reactions"]
+                    fig_comp = px.bar(top_comps, y="Company/Headline", x="Reactions", orientation='h', color="Reactions")
+                    st.plotly_chart(fig_comp, use_container_width=True)
+                else:
+                    st.warning("No external engagement found for this post yet.")
+
+            st.markdown("---")
+            st.subheader("🕸️ Virtual Connection Map")
+            render_network(post_df)
+            
+            with st.expander("Show Raw Data Table"):
+                st.dataframe(df, use_container_width=True)
+                with open(RESULTS_FILE, "rb") as file:
+                    st.download_button("Download Full CSV", data=file, file_name="virality_results.csv", mime="text/csv")
         else:
             st.info("No data inside the results file.")
     except Exception as e:
          st.error(f"Error reading {RESULTS_FILE}: {e}")
+         st.exception(e)
 else:
     st.info("Run the pipeline to generate data.")
