@@ -21,7 +21,7 @@ st.markdown("Run the Playwright Scraper on a specific LinkedIn Profile URL.")
 
 with st.sidebar:
     st.header("1. Credentials (Local)")
-    st.markdown("We use Browser Automation via Playwright. Please ensure `.env` is configured or enter below:")
+    st.markdown("We use Browser Automation via Playwright. Enter your LinkedIn credentials below:")
     
     email_input = st.text_input("LinkedIn Email", value=os.getenv("LINKEDIN_EMAIL", ""))
     pass_input = st.text_input("LinkedIn Password", value=os.getenv("LINKEDIN_PASSWORD", ""), type="password")
@@ -29,9 +29,14 @@ with st.sidebar:
     if email_input and pass_input:
         os.environ["LINKEDIN_EMAIL"] = email_input
         os.environ["LINKEDIN_PASSWORD"] = pass_input
+    
+    st.header("2. Search Parameters")
+    limit_posts = st.number_input("Number of posts to scrape", min_value=1, max_value=20, value=10)
+    limit_reactions = st.number_input("Max reactions per post", min_value=10, max_value=500, value=100)
         
-    st.header("2. Target Profile")
+    st.header("3. Target Profile")
     target_url = st.text_input("LinkedIn Profile URL", placeholder="https://www.linkedin.com/in/williamhgates/")
+    author_company = st.text_input("Author's Company (e.g. IBM, Microsoft)", value="Unknown")
     run_button = st.button("Run Pipeline 🚀")
 
 st.markdown("---")
@@ -83,7 +88,7 @@ if run_button:
             sys.stdout = mystdout
             
             try:
-                run_pipeline(target_url)
+                run_pipeline(target_url, author_company=author_company, limit_posts=limit_posts, limit_reactions=limit_reactions)
                 st.success("Pipeline Execution Finished!")
             except Exception as e:
                 st.error(f"Pipeline Error: {e}")

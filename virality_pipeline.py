@@ -7,8 +7,10 @@ from playwright.sync_api import sync_playwright
 
 load_dotenv()
 
-LINKEDIN_EMAIL = os.getenv("LINKEDIN_EMAIL", "")
-LINKEDIN_PASSWORD = os.getenv("LINKEDIN_PASSWORD", "")
+# Credentials will be read dynamically from environment variables
+def get_credentials():
+    load_dotenv()
+    return os.getenv("LINKEDIN_EMAIL", ""), os.getenv("LINKEDIN_PASSWORD", "")
 
 def calculate_virality_score(degree):
     """Formula: 1st=1, 2nd=3, 3rd=5"""
@@ -23,7 +25,7 @@ def export_to_csv(data, filename="virality_results.csv"):
     Exports data to a CSV file ready for Streamlit, Google Sheets and Kumu.io.
     """
     print(f"\n[Export] Saving data to {filename}...")
-    headers = ["Author Name", "Author URL", "Post URL", "Post Text", 
+    headers = ["Author Name", "Author URL", "Author Company", "Post URL", "Post Text", 
                "Reactor Name", "Reactor URL", "Connection Degree", "Reactor Company/Headline", "Virality Score"]
                
     with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
@@ -34,6 +36,7 @@ def export_to_csv(data, filename="virality_results.csv"):
             writer.writerow({
                 "Author Name": row.get("target_name"),
                 "Author URL": row.get("target_url"),
+                "Author Company": row.get("target_company"),
                 "Post URL": row.get("post_url"),
                 "Post Text": (row.get("post_text", "")[:100] + "...").replace("\n", " "),
                 "Reactor Name": row.get("Name"),
@@ -44,8 +47,9 @@ def export_to_csv(data, filename="virality_results.csv"):
             })
     print(f"-> Successfully saved {len(data)} reaction edges to {filename}.")
 
-def main(profile_url, limit_posts=10, limit_reactions=100):
-    if not LINKEDIN_EMAIL or not LINKEDIN_PASSWORD:
+def main(profile_url, author_company="Unknown", limit_posts=10, limit_reactions=100):
+    email, password = get_credentials()
+    if not email or not password:
          print("Error: LINKEDIN_EMAIL and LINKEDIN_PASSWORD must be in the .env file or environment.")
          return
 
@@ -68,8 +72,8 @@ def main(profile_url, limit_posts=10, limit_reactions=100):
         # Step 1: Login
         print("[Auth] Logging into LinkedIn...")
         page.goto("https://www.linkedin.com/login")
-        page.fill("input#username", LINKEDIN_EMAIL)
-        page.fill("input#password", LINKEDIN_PASSWORD)
+        page.fill("input#username", email)
+        page.fill("input#password", password)
         page.click("button[type='submit']")
         page.wait_for_load_state("networkidle")
         
@@ -173,6 +177,7 @@ def main(profile_url, limit_posts=10, limit_reactions=100):
                                all_reactions_data.append({
                                    "target_name": target_name,
                                    "target_url": clean_url,
+                                   "target_company": author_company,
                                    "post_url": post["post_url"],
                                    "post_text": post["text"],
                                    "Name": name,
@@ -198,6 +203,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="LinkedIn Virality Pipeline (Playwright)")
     parser.add_argument("--url", type=str, required=True, help="Target's full LinkedIn Profile URL")
+    parser.add_argument("--company", type=str, default="Unknown", help="Target's Company Name")
     
     args = parser.parse_args()
-    main(args.url)
+    main(args.url, author_company=args.company)
