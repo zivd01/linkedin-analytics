@@ -39,6 +39,7 @@ with st.sidebar:
     st.header("3. Target Profile")
     target_url = st.text_input("LinkedIn Profile URL", placeholder="https://www.linkedin.com/in/williamhgates/")
     author_company = st.text_input("Author's Company (e.g. IBM, Microsoft)", value="Unknown")
+    debug_mode = st.checkbox("Show Browser (Debug Mode)", value=False, help="Check this if you hit a CAPTCHA or want to watch the scraper.")
     run_button = st.button("Run Pipeline 🚀")
 
 st.markdown("---")
@@ -90,7 +91,7 @@ if run_button:
             sys.stdout = mystdout
             
             try:
-                run_pipeline(target_url, author_company=author_company, limit_posts=limit_posts, limit_reactions=limit_reactions)
+                run_pipeline(target_url, author_company=author_company, limit_posts=limit_posts, limit_reactions=limit_reactions, headless=not debug_mode)
                 st.success("Pipeline Execution Finished!")
             except Exception as e:
                 st.error(f"Pipeline Error: {e}")

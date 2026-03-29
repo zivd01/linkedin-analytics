@@ -47,7 +47,7 @@ def export_to_csv(data, filename="virality_results.csv"):
             })
     print(f"-> Successfully saved {len(data)} reaction edges to {filename}.")
 
-def main(profile_url, author_company="Unknown", limit_posts=10, limit_reactions=100):
+def main(profile_url, author_company="Unknown", limit_posts=10, limit_reactions=100, headless=True):
     email, password = get_credentials()
     if not email or not password:
          print("Error: LINKEDIN_EMAIL and LINKEDIN_PASSWORD must be in the .env file or environment.")
@@ -62,8 +62,8 @@ def main(profile_url, author_company="Unknown", limit_posts=10, limit_reactions=
     print(f"=== Starting LinkedIn Playwright Scraper for '{target_name}' ===")
 
     with sync_playwright() as p:
-        # Launch browser (headless=True for background running, or False if you want to watch debug)
-        browser = p.chromium.launch(headless=True)
+        # We use a user agent to look more like a real browser
+        browser = p.chromium.launch(headless=headless)
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
         )
@@ -204,6 +204,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="LinkedIn Virality Pipeline (Playwright)")
     parser.add_argument("--url", type=str, required=True, help="Target's full LinkedIn Profile URL")
     parser.add_argument("--company", type=str, default="Unknown", help="Target's Company Name")
+    parser.add_argument("--headed", action="store_true", help="Run browser in headed mode")
     
     args = parser.parse_args()
-    main(args.url, author_company=args.company)
+    main(args.url, author_company=args.company, headless=not args.headed)
